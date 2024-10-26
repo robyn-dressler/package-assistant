@@ -19,7 +19,7 @@ enum Command {
         #[arg(long = "service", short = 's')]
         service: bool,
     },
-    Changes {
+    Changelog {
         #[arg(long = "pending-only", short = 'p')]
         pending_only: bool,
         #[arg(long = "query", short = 'q')]
@@ -51,7 +51,7 @@ fn main() {
                 }
             };
         }
-        Command::Changes {
+        Command::Changelog {
             pending_only,
             query,
         } => {
