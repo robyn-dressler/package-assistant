@@ -7,11 +7,9 @@ const CONFIG_HOME: &str = "XDG_CONFIG_HOME";
 const DEFAULT_CONFIG_PATH: &str = ".config";
 const CONFIG_FILE_NAME: &str = "settings.toml";
 
-/* Config structs */
-
 #[derive(Deserialize, Serialize)]
 pub struct Config {
-    service: ServiceConfig
+    pub service: ServiceConfig
 }
 
 impl TomlStorage for Config {
@@ -30,15 +28,15 @@ impl TomlStorage for Config {
 
 #[derive(Deserialize, Serialize)]
 pub struct ServiceConfig {
-    enable_service: bool,
-    update_check_frequency: u32,
-    download_in_background: bool,
-    update_on_reboot: bool,
-    check_update_command: String,
-    download_command: String,
-    update_command: String,
-    update_on_reboot_command: String,
-    cached_package_path: Option<PathBuf>
+    pub enable_service: bool,
+    pub update_check_frequency: u32,
+    pub download_in_background: bool,
+    pub update_on_reboot: bool,
+    pub check_update_command: String,
+    pub download_command: String,
+    pub update_command: String,
+    pub update_on_reboot_command: String,
+    pub cached_package_path: Option<PathBuf>
 }
 
 impl Default for Config {

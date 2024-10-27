@@ -44,10 +44,7 @@ impl std::fmt::Display for Error {
             Error::DirUndefined => write!(f, "could not determine a directory to store data"),
             Error::FileAlreadyExists => write!(f, "file already exists"),
             Error::IO(err) => err.fmt(f),
-            Error::TomlDeserializationError(err) => {
-                writeln!(f, "unable to read the provided config: ")?;
-                err.fmt(f)
-            }
+            Error::TomlDeserializationError(err) => err.fmt(f),
             Error::TomlSerializationError(err) => err.fmt(f),
         }
     }
