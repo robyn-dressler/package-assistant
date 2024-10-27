@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use storage::toml::TomlStorage;
 
-mod config;
+mod storage;
 
 #[derive(Debug, Parser)]
 #[command(name = "package-assistant")]
@@ -39,10 +40,10 @@ fn main() {
             config: path_opt,
             service,
         } => {
-            let config_result = config::init(path_opt);
+            let config_result = storage::config::Config::init(path_opt);
             match config_result {
                 Err(config_error) => {
-                    println!("Error: {}", config_error);
+                    println!("Error with configuration: {}", config_error);
                 }
                 Ok(config_dir) => {
                     if let Some(s) = config_dir.to_str() {
