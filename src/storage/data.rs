@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::toml::TomlStorage;
 
-const DATA_HOME: &str = "XDG_Data_HOME";
-const DEFAULT_DATA_PATH: &str = ".local";
+const DATA_HOME: &str = "XDG_DATA_HOME";
+const DEFAULT_DATA_PATH: &str = ".local/share";
 const DATA_FILE_NAME: &str = "data.toml";
 
 #[derive(Deserialize, Serialize)]

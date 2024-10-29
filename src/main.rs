@@ -50,10 +50,9 @@ impl std::fmt::Display for Error {
 
 fn get_changelogs(query: Option<String>) -> Result<String> {
     let config_result = Config::fetch()?;
-    let data_result = Data::fetch()?;
 
     if let Some(path) = config_result.service.cached_package_path {
-        let query = ChangelogQuery { name: query, timestamp: data_result.update_timestamp };
+        let query = ChangelogQuery { name: query };
         Ok(changelog::get_dir_changelogs(&query, path)?)
     } else {
         Err(Error::PackagePathUndefined)
@@ -72,8 +71,6 @@ enum Command {
     Init {
         #[arg(long = "config", short = 'c')]
         config: Option<PathBuf>,
-        #[arg(long = "service", short = 's')]
-        service: bool,
     },
     Changelog {
         #[arg(long = "query", short = 'q')]
@@ -90,8 +87,7 @@ fn main() {
 
     match args.command {
         Command::Init {
-            config: path_opt,
-            service,
+            config: path_opt
         } => {
             let config_result = Config::init(path_opt);
             let data_result = Data::init(None);
