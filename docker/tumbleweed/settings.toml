@@ -1,0 +1,10 @@
+[service]
+enable_service = true
+update_check_frequency = 30
+download_in_background = true
+update_on_reboot = false
+check_update_command = "zypper lu"
+download_command = "zypper dup -d"
+update_command = "zypper dup"
+update_on_reboot_command = "pkcon offline-trigger"
+cached_package_path = "/var/cache/zypp/packages"
