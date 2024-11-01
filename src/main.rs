@@ -69,7 +69,8 @@ fn perform_test() -> Result<()> {
     let ref changelog_query = ChangelogQuery { name: None };
 
     pkg_manager.download_update()?;
-    pkg_manager.get_cached_changelogs(changelog_query)?;
+    let changelogs = pkg_manager.get_cached_changelogs(changelog_query)?;
+    println!("Changelog:\n{}", changelogs);
 
     Ok(())
 }
