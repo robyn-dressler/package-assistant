@@ -1,0 +1,12 @@
+[service]
+enable_service = true
+update_check_frequency = 30
+download_in_background = true
+update_on_reboot = false
+
+[package]
+package_type = "rpm"
+check_update_command = "dnf check-update"
+download_command = "dnf --downloadonly -y upgrade"
+update_command = "dnf upgrade"
+cached_package_path = "/var/cache/dnf"

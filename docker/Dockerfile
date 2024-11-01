@@ -1,3 +1,5 @@
+ARG BASE_IMAGE
+
 #Build application
 FROM rust:latest as builder
 WORKDIR /usr/src/package-assistant
@@ -5,17 +7,17 @@ COPY . .
 RUN cargo build --release
 
 #Setup test environment
-FROM opensuse/tumbleweed:latest
+FROM ${BASE_IMAGE}
 WORKDIR /usr/local/package-assistant
 
 COPY --from=builder /usr/src/package-assistant/target/release/package-assistant /usr/local/bin/package-assistant
-
-#Setup cached packages
-RUN zypper dup -d -y
 
 RUN useradd -m pkguser
 USER pkguser
 
 WORKDIR /home/pkguser
-COPY docker/tumbleweed/settings.toml .
+ARG DISTRO_NAME
+COPY "docker/settings-${DISTRO_NAME}.toml" settings.toml
 RUN package-assistant init -c settings.toml
+
+CMD ["package-assistant", "test"]

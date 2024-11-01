@@ -1,0 +1,12 @@
+[service]
+enable_service = true
+update_check_frequency = 30
+download_in_background = true
+update_on_reboot = false
+
+[package]
+package_type = "pkg"
+check_update_command = "checkupdates"
+download_command = "pacman -Syuw --noconfirm"
+update_command = "pacman -Syu"
+cached_package_path = "/var/cache/pacman/pkg"

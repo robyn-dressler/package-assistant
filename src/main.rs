@@ -1,19 +1,18 @@
 use std::path::PathBuf;
 
-use changelog::ChangelogQuery;
+use package_manager::ChangelogQuery;
 use clap::{Parser, Subcommand};
 use storage::{Config, Data, TomlStorage};
 
+mod package_manager;
 mod storage;
-mod changelog;
 
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
     StorageError(storage::Error),
-    ChangelogError(changelog::Error),
-    PackagePathUndefined,
+    PackageManagerError(package_manager::Error)
 }
 
 impl From<storage::Error> for Error {
@@ -22,9 +21,9 @@ impl From<storage::Error> for Error {
     }
 }
 
-impl From<changelog::Error> for Error {
-    fn from(value: changelog::Error) -> Self {
-        Error::ChangelogError(value)
+impl From<package_manager::Error> for Error {
+    fn from(value: package_manager::Error) -> Self {
+        Error::PackageManagerError(value)
     }
 }
 
@@ -32,8 +31,7 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::StorageError(err) => Some(err),
-            Error::ChangelogError(err) => Some(err),
-            _ => None,
+            Error::PackageManagerError(err) => Some(err)
         }
     }
 }
@@ -42,21 +40,38 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::StorageError(err) => err.fmt(f),
-            Error::ChangelogError(err) => err.fmt(f),
-            Error::PackagePathUndefined => write!(f, "must configure 'cached_package_path' before calling changelog command")
+            Error::PackageManagerError(err) => err.fmt(f)
         }
     }
 }
 
-fn get_changelogs(query: Option<String>) -> Result<String> {
-    let config_result = Config::fetch()?;
+fn handle_storage_result<T>(config_result: std::result::Result<T, storage::Error>) -> Result<Option<T>> {
+    let result = match config_result {
+        Err(storage::Error::FileAlreadyExists) => Ok(None),
+        Ok(value) => Ok(Some(value)),
+        Err(e) => Err(e)
+    };
 
-    if let Some(path) = config_result.service.cached_package_path {
-        let query = ChangelogQuery { name: query };
-        Ok(changelog::get_dir_changelogs(&query, path)?)
-    } else {
-        Err(Error::PackagePathUndefined)
-    }
+    Ok(result?)
+}
+
+fn get_changelogs(query: Option<String>) -> Result<String> {
+    let config = Config::fetch()?;
+    let pkg_manager = package_manager::get_package_manager(&config.package)?;
+    let ref changelog_query = ChangelogQuery { name: query };
+
+    Ok(pkg_manager.get_cached_changelogs(changelog_query)?)
+}
+
+fn perform_test() -> Result<()> {
+    let config = Config::fetch()?;
+    let pkg_manager = package_manager::get_package_manager(&config.package)?;
+    let ref changelog_query = ChangelogQuery { name: None };
+
+    pkg_manager.download_update()?;
+    pkg_manager.get_cached_changelogs(changelog_query)?;
+
+    Ok(())
 }
 
 #[derive(Debug, Parser)]
@@ -76,48 +91,30 @@ enum Command {
         #[arg(long = "query", short = 'q')]
         query: Option<String>,
     },
-    CheckUpdates {
-        #[arg(long = "download", short = 'd')]
-        download: bool,
-    },
+    Test
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
-        Command::Init {
-            config: path_opt
-        } => {
-            let config_result = Config::init(path_opt);
-            let data_result = Data::init(None);
-            match (config_result, data_result) {
-                (Err(config_error), _) => {
-                    println!("Error with configuration: {}", config_error);
-                },
-                (_, Err(data_error)) => {
-                    println!("Error initializing data file: {}", data_error);
-                },
-                (Ok(config_dir), _) => {
-                    if let Some(s) = config_dir.to_str() {
-                        println!("Wrote configuration to {}", s)
-                    }
-                }
-            };
-        }
-        Command::Changelog {
-            query,
-        } => {
-            match get_changelogs(query) {
-                Ok(changelogs) => println!("{}", changelogs),
-                Err(err) => println!("Error: {}", err)
+        Command::Init { config: path_opt } => {
+            let path_opt = handle_storage_result(Config::init(path_opt))?;
+            handle_storage_result(Data::init(None))?;
+
+            if let Some(s) = path_opt.as_ref().and_then(|path| path.to_str()) {
+                println!("Wrote configuration to {}", s)
             }
         }
-        Command::CheckUpdates { download } => {
-            println!("Checking for updates!");
-            if download {
-                println!("Downloading available packages...");
-            }
+        Command::Changelog { query } => {
+            let changelogs = get_changelogs(query)?;
+            println!("{}", changelogs);
+        },
+        Command::Test => {
+            perform_test()?;
+            println!("Test succeeded.");
         }
     }
+
+    Ok(())
 }
