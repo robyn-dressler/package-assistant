@@ -4,7 +4,6 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::error::Error;
 
-const USER_HOME: &str = "HOME";
 const PROGRAM_NAME: &str = "package-assistant";
 
 type Result<T> = std::result::Result<T, Error>;
@@ -46,23 +45,10 @@ pub trait TomlStorage: Default + DeserializeOwned + Serialize {
     /// `Error::DirUndefined` if it is unable to resolve the directory using the existing
     /// environment variables.
     fn get_dir_path() -> Result<PathBuf> {
-        let home_dir = std::env::var_os(USER_HOME);
-        let data_home = std::env::var_os(Self::directory_env_var());
+        let mut result = PathBuf::from(Self::default_directory());
+        result.push(PROGRAM_NAME);
 
-        match data_home {
-            Some(c) if !c.is_empty() => Ok(PathBuf::from(c)),
-            _ => {
-                if let Some(home) = home_dir {
-                    let mut result = PathBuf::from(home);
-                    result.push(Self::default_directory());
-                    result.push(PROGRAM_NAME);
-
-                    Ok(result)
-                } else {
-                    Err(Error::DirUndefined)
-                }
-            }
-        }
+        Ok(result)
     }
 
     /// Gets the path that the file will be saved to
@@ -102,10 +88,6 @@ pub trait TomlStorage: Default + DeserializeOwned + Serialize {
 
     fn file_name() -> &'static str;
 
-    /// The environment variable to use to retrieve the parent directory of the file,
-    /// e.g. XDG_CONFIG_HOME
-    fn directory_env_var() -> &'static str;
-
-    /// The fallback directory to save the file to relative to the user's home directory, e.g. .config
+    /// The directory to save the file, as the root user
     fn default_directory() -> &'static str;
 }

@@ -2,20 +2,19 @@ ARG BASE_IMAGE
 
 #Build application
 FROM rust:latest as builder
-WORKDIR /usr/src/package-assistant
+WORKDIR /home/root/src
 COPY . .
-RUN cargo build --release
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/src/package-assistant/target \
+    cargo build --release && \
+    cp target/release/package-assistant ./package-assistant
 
 #Setup test environment
 FROM ${BASE_IMAGE}
-WORKDIR /usr/local/package-assistant
+WORKDIR /home/root
 
-COPY --from=builder /usr/src/package-assistant/target/release/package-assistant /usr/local/bin/package-assistant
+COPY --from=builder /home/root/src/package-assistant /usr/local/bin/package-assistant
 
-RUN useradd -m pkguser
-USER pkguser
-
-WORKDIR /home/pkguser
 ARG DISTRO_NAME
 COPY "docker/settings-${DISTRO_NAME}.toml" settings.toml
 RUN package-assistant init -c settings.toml

@@ -2,7 +2,6 @@ use std::io;
 
 #[derive(Debug)]
 pub enum Error {
-    DirUndefined,
     FileAlreadyExists,
     TomlDeserializationError(toml::de::Error),
     TomlSerializationError(toml::ser::Error),
@@ -41,7 +40,6 @@ impl From<toml::ser::Error> for Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::DirUndefined => write!(f, "could not determine a directory to store data"),
             Error::FileAlreadyExists => write!(f, "file already exists"),
             Error::IO(err) => err.fmt(f),
             Error::TomlDeserializationError(err) => err.fmt(f),

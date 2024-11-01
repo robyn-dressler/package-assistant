@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::toml::TomlStorage;
 
-const DATA_HOME: &str = "XDG_DATA_HOME";
-const DEFAULT_DATA_PATH: &str = ".local/share";
+const DATA_PATH: &str = "/usr/share";
 const DATA_FILE_NAME: &str = "data.toml";
 
 #[derive(Deserialize, Serialize)]
@@ -13,11 +12,7 @@ pub struct Data {
 
 impl TomlStorage for Data {
     fn default_directory() -> &'static str {
-        DEFAULT_DATA_PATH
-    }
-
-    fn directory_env_var() -> &'static str {
-        DATA_HOME
+        DATA_PATH
     }
 
     fn file_name() -> &'static str {

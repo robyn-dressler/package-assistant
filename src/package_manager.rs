@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Output};
 use std::{fs, io};
 use std::path::Path;
 
@@ -93,6 +93,17 @@ pub fn get_package_manager<'a>(config: &'a PackageConfig) -> Result<Box<dyn Pack
     }
 }
 
+fn process_cmd_output<F>(output: Output, get_error: F) -> Result<String>
+where F: Fn(String) -> Error {
+    if !output.status.success() {
+        let stderr = String::from_utf8(output.stderr)?;
+        return Err(get_error(stderr))
+    } else {
+        let stdout = String::from_utf8(output.stdout)?;
+        Ok(stdout)
+    }
+}
+
 pub trait PackageManager {
     fn get_cached_changelogs(&self, query: &ChangelogQuery) -> Result<String> {
         let path = self.get_cached_package_path()?;
@@ -176,11 +187,7 @@ pub trait PackageManager {
             .args(["-c", config.download_command.as_str()])
             .output()?;
 
-        let stderr = String::from_utf8(output.stderr)?;
-
-        if !stderr.is_empty() {
-            return Err(Error::DownloadError(stderr))
-        }
+        process_cmd_output(output, |err| Error::DownloadError(err))?;
 
         Ok(())
     }
@@ -216,13 +223,7 @@ impl<'a> PackageManager for RPMManager<'a> {
             .args(["-q", name, "--qf", "%{CHANGELOGTIME}"])
             .output()?;
 
-        let stdout = String::from_utf8(output.stdout)?;
-        let stderr = String::from_utf8(output.stderr)?;
-
-        if !stderr.is_empty() {
-            return Err(Error::RPMCommandError(stderr))
-        }
-
+        let stdout = process_cmd_output(output, |err| Error::RPMCommandError(err))?;
         if let Some(first_line) = stdout.lines().next() {
             Ok(first_line.parse::<u64>()?)
         } else {

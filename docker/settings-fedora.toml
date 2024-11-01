@@ -7,6 +7,6 @@ update_on_reboot = false
 [package]
 package_type = "rpm"
 check_update_command = "dnf check-update"
-download_command = "dnf --downloadonly -y upgrade"
+download_command = "dnf upgrade --downloadonly -y"
 update_command = "dnf upgrade"
-cached_package_path = "/var/cache/dnf"
+cached_package_path = "/var/cache/libdnf5"
