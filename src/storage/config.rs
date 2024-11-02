@@ -32,40 +32,42 @@ pub struct ServiceConfig {
 
 #[derive(Deserialize, Serialize)]
 pub struct PackageConfig {
-    pub package_type: Option<PackageType>,
-    pub check_update_command: String,
+    pub package_manager: Option<PackageManagerType>,
     pub download_command: String,
     pub update_command: String,
     pub cached_package_path: Option<PathBuf>
 }
 
-pub enum PackageType {
-    RPM,
-    Deb,
-    Pkg
+pub enum PackageManagerType {
+    Zypper,
+    Dnf,
+    Apt,
+    Pacman
 }
 
-impl Serialize for PackageType {
+impl Serialize for PackageManagerType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
         match self {
-            PackageType::RPM => serializer.serialize_str("rpm"),
-            PackageType::Deb => serializer.serialize_str("deb"),
-            PackageType::Pkg => serializer.serialize_str("pkg")
+            PackageManagerType::Zypper => serializer.serialize_str("zypper"),
+            PackageManagerType::Dnf => serializer.serialize_str("dnf"),
+            PackageManagerType::Apt => serializer.serialize_str("apt"),
+            PackageManagerType::Pacman => serializer.serialize_str("pacman")
         }
     }
 }
 
-impl<'de> Deserialize<'de> for PackageType {
+impl<'de> Deserialize<'de> for PackageManagerType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: serde::Deserializer<'de> {
         let s = String::deserialize(deserializer)?;
 
         match s.as_str() {
-            "rpm" => Ok(PackageType::RPM),
-            "deb" => Ok(PackageType::Deb),
-            "pkg" => Ok(PackageType::Pkg),
-            _ => Err(Error::custom("invalid package type"))
+            "zypper" => Ok(PackageManagerType::Zypper),
+            "dnf" => Ok(PackageManagerType::Dnf),
+            "apt" => Ok(PackageManagerType::Apt),
+            "pacman" => Ok(PackageManagerType::Pacman),
+            _ => Err(Error::custom("invalid package manager"))
         }
     }
 }
@@ -80,8 +82,7 @@ impl Default for Config {
                 update_on_reboot: true
             },
             package: PackageConfig {
-                package_type: None,
-                check_update_command: String::from("pkcon get-updates"),
+                package_manager: None,
                 download_command: String::from("pkcon update --only-download --background"),
                 update_command: String::from("pkcon update"),
                 cached_package_path: None

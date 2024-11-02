@@ -5,8 +5,7 @@ download_in_background = true
 update_on_reboot = false
 
 [package]
-package_type = "deb"
-check_update_command = "apt list --upgradable"
+package_manager = "apt"
 download_command = "apt-get update && apt-get upgrade -y --download-only"
-update_command = "apt-get upgrade"
+update_command = "apt-get upgrade -y"
 cached_package_path = "/var/cache/apt/archives"

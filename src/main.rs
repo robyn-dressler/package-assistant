@@ -68,9 +68,21 @@ fn perform_test() -> Result<()> {
     let pkg_manager = package_manager::get_package_manager(&config.package)?;
     let ref changelog_query = ChangelogQuery { name: None };
 
+    let updates = pkg_manager.check_update()?;
+    if updates.is_empty() {
+        println!("No updates available.")
+    } else {
+        println!("Available updates:");
+        for update in updates {
+            println!("{} ({}) -> ({})", update.name, update.old_version, update.new_version)
+        }
+    }
+
     pkg_manager.download_update()?;
     let changelogs = pkg_manager.get_cached_changelogs(changelog_query)?;
     println!("Changelog:\n{}", changelogs);
+
+    pkg_manager.do_update()?;
 
     Ok(())
 }
@@ -112,8 +124,11 @@ fn main() -> Result<()> {
             println!("{}", changelogs);
         },
         Command::Test => {
-            perform_test()?;
-            println!("Test succeeded.");
+            let test_result = perform_test();
+            match test_result {
+                Ok(_) => println!("Test succeeded."),
+                Err(error) => eprintln!("Error: {}", error)
+            }
         }
     }
 

@@ -2,7 +2,11 @@ use std::process::{Command, Output};
 use std::{fs, io};
 use std::path::Path;
 
-use crate::storage::{PackageConfig, PackageType};
+use quick_xml::events::attributes::Attribute;
+use quick_xml::events::Event;
+use quick_xml::Reader;
+
+use crate::storage::{PackageConfig, PackageManagerType};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -12,14 +16,18 @@ pub enum Error {
     RPMError(rpm::Error),
     Utf8StringError(std::string::FromUtf8Error),
     ParseIntError(std::num::ParseIntError),
+    XMLError(quick_xml::errors::Error),
+    XMLAttributeError(quick_xml::events::attributes::AttrError),
     NoChangelogsForPackage,
     NoChangelogsInDirectory,
     PackageNameDoesNotMatch(String, String),
     InvalidRPMResponse,
     RPMCommandError(String),
-    UnknownPackageType,
+    UnsupportedPackageManager,
     UnkownCachedPackagePath,
-    DownloadError(String)
+    DownloadError(String),
+    UpdateError(String),
+    ZypperError(String)
 }
 
 impl From<io::Error> for Error {
@@ -46,6 +54,18 @@ impl From<std::num::ParseIntError> for Error {
     }
 }
 
+impl From<quick_xml::errors::Error> for Error {
+    fn from(value: quick_xml::errors::Error) -> Self {
+        Error::XMLError(value)
+    }
+}
+
+impl From<quick_xml::events::attributes::AttrError> for Error {
+    fn from(value: quick_xml::events::attributes::AttrError) -> Self {
+        Error::XMLAttributeError(value)
+    }
+}
+
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
@@ -53,6 +73,8 @@ impl std::error::Error for Error {
             Error::RPMError(err) => Some(err),
             Error::Utf8StringError(err) => Some(err),
             Error::ParseIntError(err) => Some(err),
+            Error::XMLError(err) => Some(err),
+            Error::XMLAttributeError(err) => Some(err),
             _ => None
         }
     }
@@ -65,14 +87,18 @@ impl std::fmt::Display for Error {
             Error::RPMError(err) => err.fmt(f),
             Error::Utf8StringError(err) => err.fmt(f),
             Error::ParseIntError(err) => err.fmt(f),
+            Error::XMLError(err) => err.fmt(f),
+            Error::XMLAttributeError(err) => err.fmt(f),
             Error::NoChangelogsForPackage => write!(f, "package has no changelogs to display"),
             Error::NoChangelogsInDirectory => write!(f, "could not find any packages containing changelogs"),
             Error::PackageNameDoesNotMatch(name, query) => write!(f, "package '{}' does not match the query '{}'", name, query),
             Error::RPMCommandError(error_string) => write!(f, "rpm command failed: {}", error_string),
             Error::InvalidRPMResponse => write!(f, "rpm query returned an unexpected response"),
-            Error::UnknownPackageType => write!(f, "'package_type' must be set to either \"rpm\", \"deb\", or \"pkg\" in settings"),
+            Error::UnsupportedPackageManager => write!(f, "'package_manager' must be set to either \"zypper\", \"dnf\", \"apt\", or \"pacman\" in settings"),
             Error::UnkownCachedPackagePath => write!(f, "'cached_package_path' must be provided in settings"),
-            Error::DownloadError(error_string) => write!(f, "failed to download packages: {}", error_string)
+            Error::DownloadError(error_string) => write!(f, "failed to download packages: {}", error_string),
+            Error::UpdateError(error_string) => write!(f, "failed to run update: {}", error_string),
+            Error::ZypperError(error_string) => write!(f, "zypper command failed: {}", error_string),
         }
     }
 }
@@ -86,11 +112,28 @@ pub struct PackageChangelogResult {
     changelogs: Vec<String>
 }
 
+pub struct PackageUpdateItem {
+    pub name: String,
+    pub old_version: String,
+    pub new_version: String
+}
+
 pub fn get_package_manager<'a>(config: &'a PackageConfig) -> Result<Box<dyn PackageManager + 'a>> {
-    match config.package_type {
-        Some(PackageType::RPM) => Ok(Box::new(RPMManager { config })),
-        _ => Err(Error::UnknownPackageType)
+    match config.package_manager {
+        Some(PackageManagerType::Zypper) => Ok(Box::new(ZypperManager { config })),
+        _ => Err(Error::UnsupportedPackageManager)
     }
+}
+
+fn run_shell_command<F>(command: &str, get_error: F) -> Result<()>
+where F: Fn(String) -> Error {
+    let output = Command::new("sh")
+        .args(["-c", command])
+        .output()?;
+
+    process_cmd_output(output, get_error)?;
+
+    Ok(())
 }
 
 fn process_cmd_output<F>(output: Output, get_error: F) -> Result<String>
@@ -141,10 +184,6 @@ pub trait PackageManager {
         }
     }
 
-    fn matches_query(&self, name: &str, query: &str) -> bool {
-        name.starts_with(query)
-    }
-
     /// Gets all changelogs for a package at the given path, filtering out any changelogs that
     /// have a timestamp before the latest changelog of the corresponding installed package.
     /// If query does not match the package name, then returns `Error::PackageNameDoesNotMatch`.
@@ -178,61 +217,109 @@ pub trait PackageManager {
     /// along with a list of changelog entries.
     fn get_package_changelogs_result(&self, query: &ChangelogQuery, path: &Path) -> Result<PackageChangelogResult>;
 
-    /// Calls package manager specific command to get the latest changelog timestamp of an installed package
-    fn get_installed_pkg_timestamp(&self, name: &str) -> Result<u64>;
+    fn check_update(&self) -> Result<Vec<PackageUpdateItem>>;
 
     fn download_update(&self) -> Result<()> {
         let config = self.get_config();
-        let output = Command::new("sh")
-            .args(["-c", config.download_command.as_str()])
-            .output()?;
+        run_shell_command(config.download_command.as_str(), |err| Error::DownloadError(err))
+    }
 
-        process_cmd_output(output, |err| Error::DownloadError(err))?;
-
-        Ok(())
+    fn do_update(&self) -> Result<()> {
+        let config = self.get_config();
+        run_shell_command(config.update_command.as_str(), |err| Error::UpdateError(err))
     }
 }
 
-pub struct RPMManager<'a> {
+/* Utility functions */
+fn matches_query(name: &str, query: &str) -> bool {
+    name.starts_with(query)
+}
+
+fn attr_to_string(attr: Attribute) -> String {
+    String::from_utf8_lossy(attr.value.as_ref()).to_string()
+}
+
+/* RPM functions */
+fn get_rpm_changelogs_result(query: &ChangelogQuery, path: &Path) -> Result<PackageChangelogResult> {
+    let package = rpm::Package::open(path)?;
+    let name = package.metadata.get_name()?;
+
+    if let Some(ref query_name) = query.name {
+        if !matches_query(name, query_name) {
+            return Err(Error::PackageNameDoesNotMatch(name.to_owned(), (*query_name).clone()))
+        }
+    }
+
+    let timestamp = get_installed_pkg_timestamp(name).unwrap_or(0);
+    let changelogs = package.metadata.get_changelog_entries()?
+        .into_iter()
+        .filter(|c| c.timestamp > timestamp)
+        .map(|c| c.description)
+        .collect::<Vec<String>>();
+
+    Ok(PackageChangelogResult { name: String::from(name), changelogs })
+}
+
+fn get_installed_pkg_timestamp(name: &str) -> Result<u64> {
+    let output = Command::new("rpm")
+        .args(["-q", name, "--qf", "%{CHANGELOGTIME}"])
+        .output()?;
+
+    let stdout = process_cmd_output(output, |err| Error::RPMCommandError(err))?;
+    if let Some(first_line) = stdout.lines().next() {
+        Ok(first_line.parse::<u64>()?)
+    } else {
+        Err(Error::InvalidRPMResponse)
+    }
+}
+
+pub struct ZypperManager<'a> {
     config: &'a PackageConfig
 }
 
-impl<'a> PackageManager for RPMManager<'a> {
+impl<'a> PackageManager for ZypperManager<'a> {
     fn get_package_changelogs_result(&self, query: &ChangelogQuery, path: &Path) -> Result<PackageChangelogResult> {
-        let package = rpm::Package::open(path)?;
-        let name = package.metadata.get_name()?;
-    
-        if let Some(ref query_name) = query.name {
-            if !self.matches_query(name, query_name) {
-                return Err(Error::PackageNameDoesNotMatch(name.to_owned(), (*query_name).clone()))
-            }
-        }
-    
-        let timestamp = self.get_installed_pkg_timestamp(name).unwrap_or(0);
-        let changelogs = package.metadata.get_changelog_entries()?
-            .into_iter()
-            .filter(|c| c.timestamp > timestamp)
-            .map(|c| c.description)
-            .collect::<Vec<String>>();
-    
-        Ok(PackageChangelogResult { name: String::from(name), changelogs })
-    }
-
-    fn get_installed_pkg_timestamp(&self, name: &str) -> Result<u64> {
-        let output = Command::new("rpm")
-            .args(["-q", name, "--qf", "%{CHANGELOGTIME}"])
-            .output()?;
-
-        let stdout = process_cmd_output(output, |err| Error::RPMCommandError(err))?;
-        if let Some(first_line) = stdout.lines().next() {
-            Ok(first_line.parse::<u64>()?)
-        } else {
-            Err(Error::InvalidRPMResponse)
-        }
+        get_rpm_changelogs_result(query, path)
     }
 
     fn get_config(&self) -> &PackageConfig {
         self.config
     }
-}
+    
+    fn check_update(&self) -> Result<Vec<PackageUpdateItem>> {
+        let output = Command::new("zypper")
+            .args(["--xmlout", "lu"])
+            .output()?;
+        let stdout = process_cmd_output(output, |err| Error::ZypperError(err))?;
+        let mut reader = Reader::from_str(stdout.as_str());
+        let mut items = Vec::new();
 
+        loop {
+            match reader.read_event()? {
+                Event::Start(e) if e.name().as_ref() == b"update" =>{
+                    let mut name: String = String::new();
+                    let mut edition: String = String::new();
+                    let mut edition_old: String = String::new();
+                    let attributes = e.attributes();
+
+                    for attr_result in attributes {
+                        let attr = attr_result?;
+
+                        match attr.key.as_ref() {
+                            b"name" => name = attr_to_string(attr),
+                            b"edition" => edition = attr_to_string(attr),
+                            b"edition-old" => edition_old = attr_to_string(attr),
+                            _ => ()
+                        }
+                    }
+
+                    items.push(PackageUpdateItem { name, new_version: edition, old_version: edition_old });
+                },
+                Event::Eof => break,
+                _ => ()
+            }
+        }
+
+        Ok(items)
+    }
+}
