@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use package_manager::ChangelogQuery;
+use package::ChangelogQuery;
 use clap::{Parser, Subcommand};
 use storage::{Config, Data, TomlStorage};
 
-mod package_manager;
+mod package;
 mod storage;
 
 type Result<T> = std::result::Result<T, Error>;
@@ -12,7 +12,7 @@ type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     StorageError(storage::Error),
-    PackageManagerError(package_manager::Error)
+    PackageManagerError(package::Error)
 }
 
 impl From<storage::Error> for Error {
@@ -21,8 +21,8 @@ impl From<storage::Error> for Error {
     }
 }
 
-impl From<package_manager::Error> for Error {
-    fn from(value: package_manager::Error) -> Self {
+impl From<package::Error> for Error {
+    fn from(value: package::Error) -> Self {
         Error::PackageManagerError(value)
     }
 }
@@ -57,7 +57,7 @@ fn handle_storage_result<T>(config_result: std::result::Result<T, storage::Error
 
 fn get_changelogs(query: Option<String>) -> Result<String> {
     let config = Config::fetch()?;
-    let pkg_manager = package_manager::get_package_manager(&config.package)?;
+    let pkg_manager = package::get_package_manager(&config.package)?;
     let ref changelog_query = ChangelogQuery { name: query };
 
     Ok(pkg_manager.get_cached_changelogs(changelog_query)?)
@@ -65,7 +65,7 @@ fn get_changelogs(query: Option<String>) -> Result<String> {
 
 fn perform_test() -> Result<()> {
     let config = Config::fetch()?;
-    let pkg_manager = package_manager::get_package_manager(&config.package)?;
+    let pkg_manager = package::get_package_manager(&config.package)?;
     let ref changelog_query = ChangelogQuery { name: None };
 
     let updates = pkg_manager.check_update()?;
