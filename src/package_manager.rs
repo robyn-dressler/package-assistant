@@ -5,6 +5,7 @@ use std::path::Path;
 use quick_xml::events::attributes::Attribute;
 use quick_xml::events::Event;
 use quick_xml::Reader;
+use regex::Regex;
 
 use crate::storage::{PackageConfig, PackageManagerType};
 
@@ -18,6 +19,7 @@ pub enum Error {
     ParseIntError(std::num::ParseIntError),
     XMLError(quick_xml::errors::Error),
     XMLAttributeError(quick_xml::events::attributes::AttrError),
+    RegexError(regex::Error),
     NoChangelogsForPackage,
     NoChangelogsInDirectory,
     PackageNameDoesNotMatch(String, String),
@@ -27,7 +29,8 @@ pub enum Error {
     UnkownCachedPackagePath,
     DownloadError(String),
     UpdateError(String),
-    ZypperError(String)
+    ZypperError(String),
+    DnfError(String)
 }
 
 impl From<io::Error> for Error {
@@ -66,6 +69,12 @@ impl From<quick_xml::events::attributes::AttrError> for Error {
     }
 }
 
+impl From<regex::Error> for Error {
+    fn from(value: regex::Error) -> Self {
+        Error::RegexError(value)
+    }
+}
+
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
@@ -75,6 +84,7 @@ impl std::error::Error for Error {
             Error::ParseIntError(err) => Some(err),
             Error::XMLError(err) => Some(err),
             Error::XMLAttributeError(err) => Some(err),
+            Error::RegexError(err) => Some(err),
             _ => None
         }
     }
@@ -89,6 +99,7 @@ impl std::fmt::Display for Error {
             Error::ParseIntError(err) => err.fmt(f),
             Error::XMLError(err) => err.fmt(f),
             Error::XMLAttributeError(err) => err.fmt(f),
+            Error::RegexError(err) => err.fmt(f),
             Error::NoChangelogsForPackage => write!(f, "package has no changelogs to display"),
             Error::NoChangelogsInDirectory => write!(f, "could not find any packages containing changelogs"),
             Error::PackageNameDoesNotMatch(name, query) => write!(f, "package '{}' does not match the query '{}'", name, query),
@@ -99,6 +110,7 @@ impl std::fmt::Display for Error {
             Error::DownloadError(error_string) => write!(f, "failed to download packages: {}", error_string),
             Error::UpdateError(error_string) => write!(f, "failed to run update: {}", error_string),
             Error::ZypperError(error_string) => write!(f, "zypper command failed: {}", error_string),
+            Error::DnfError(error_string) => write!(f, "dnf command failed: {}", error_string),
         }
     }
 }
@@ -114,13 +126,30 @@ pub struct PackageChangelogResult {
 
 pub struct PackageUpdateItem {
     pub name: String,
-    pub old_version: String,
-    pub new_version: String
+    pub old_version: Option<String>,
+    pub new_version: Option<String>
+}
+
+impl std::fmt::Display for PackageUpdateItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)?;
+
+        if let Some(ref new_version) = self.new_version {
+            write!(f, " ({})", new_version)?;
+
+            if let Some(ref old_version) = self.old_version {
+                write!(f, " -> ({})", old_version)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 pub fn get_package_manager<'a>(config: &'a PackageConfig) -> Result<Box<dyn PackageManager + 'a>> {
     match config.package_manager {
         Some(PackageManagerType::Zypper) => Ok(Box::new(ZypperManager { config })),
+        Some(PackageManagerType::Dnf) => Ok(Box::new(DnfManger { config })),
         _ => Err(Error::UnsupportedPackageManager)
     }
 }
@@ -149,8 +178,11 @@ where F: Fn(String) -> Error {
 
 pub trait PackageManager {
     fn get_cached_changelogs(&self, query: &ChangelogQuery) -> Result<String> {
-        let path = self.get_cached_package_path()?;
-        self.get_dir_changelogs(query, path)
+        if let Some(ref path) = self.get_config().cached_package_path {
+            self.get_dir_changelogs(query, path)
+        } else {
+            Err(Error::UnkownCachedPackagePath)
+        }
     }
 
     /// Within the given `path`, for all package names that match the `query`, recursively finds all changelogs
@@ -175,8 +207,10 @@ pub trait PackageManager {
             Err(Error::NoChangelogsInDirectory)
         } else {
             let mut changelog_string = String::new();
-            for changelog in changelogs {
-                changelog_string.push_str("\n\n");
+            for (i, changelog) in changelogs.iter().enumerate() {
+                if i > 0 {
+                    changelog_string.push_str("\n\n");
+                }
                 changelog_string.push_str(&changelog);
             }
         
@@ -200,14 +234,6 @@ pub trait PackageManager {
             }
         
             Ok(changelog_string)
-        }
-    }
-
-    fn get_cached_package_path(&self) -> Result<&Path> {
-        if let Some(ref path) = self.get_config().cached_package_path {
-            Ok(path)
-        } else {
-            Err(Error::UnkownCachedPackagePath)
         }
     }
 
@@ -278,14 +304,15 @@ pub struct ZypperManager<'a> {
 }
 
 impl<'a> PackageManager for ZypperManager<'a> {
-    fn get_package_changelogs_result(&self, query: &ChangelogQuery, path: &Path) -> Result<PackageChangelogResult> {
-        get_rpm_changelogs_result(query, path)
-    }
 
     fn get_config(&self) -> &PackageConfig {
         self.config
     }
-    
+
+    fn get_package_changelogs_result(&self, query: &ChangelogQuery, path: &Path) -> Result<PackageChangelogResult> {
+        get_rpm_changelogs_result(query, path)
+    }
+
     fn check_update(&self) -> Result<Vec<PackageUpdateItem>> {
         let output = Command::new("zypper")
             .args(["--xmlout", "lu"])
@@ -298,8 +325,8 @@ impl<'a> PackageManager for ZypperManager<'a> {
             match reader.read_event()? {
                 Event::Start(e) if e.name().as_ref() == b"update" =>{
                     let mut name: String = String::new();
-                    let mut edition: String = String::new();
-                    let mut edition_old: String = String::new();
+                    let mut edition: Option<String> = None;
+                    let mut edition_old: Option<String> = None;
                     let attributes = e.attributes();
 
                     for attr_result in attributes {
@@ -307,13 +334,15 @@ impl<'a> PackageManager for ZypperManager<'a> {
 
                         match attr.key.as_ref() {
                             b"name" => name = attr_to_string(attr),
-                            b"edition" => edition = attr_to_string(attr),
-                            b"edition-old" => edition_old = attr_to_string(attr),
+                            b"edition" => edition = Some(attr_to_string(attr)),
+                            b"edition-old" => edition_old = Some(attr_to_string(attr)),
                             _ => ()
                         }
                     }
 
-                    items.push(PackageUpdateItem { name, new_version: edition, old_version: edition_old });
+                    if !name.is_empty() {
+                        items.push(PackageUpdateItem { name, new_version: edition, old_version: edition_old });
+                    }
                 },
                 Event::Eof => break,
                 _ => ()
@@ -321,5 +350,41 @@ impl<'a> PackageManager for ZypperManager<'a> {
         }
 
         Ok(items)
+    }
+}
+
+pub struct DnfManger<'a> {
+    config: &'a PackageConfig
+}
+
+impl<'a> PackageManager for DnfManger<'a> {
+    fn get_config(&self) -> &PackageConfig {
+        self.config
+    }
+
+    fn get_package_changelogs_result(&self, query: &ChangelogQuery, path: &Path) -> Result<PackageChangelogResult> {
+        get_rpm_changelogs_result(query, path)
+    }
+
+    fn check_update(&self) -> Result<Vec<PackageUpdateItem>> {
+        let output = Command::new("dnf")
+            .arg("check-update")
+            .output()?;
+        let cmd_result = process_cmd_output(output, |err| Error::DnfError(err));
+
+        match cmd_result {
+            Ok(stdout) => {
+                let regex = Regex::new(r"(?gm)^(\S+)\s+(\S+)\s+updates$")?;
+        
+                let items = regex.captures_iter(&stdout).map(|c| {
+                    let (_, [name, version]) = c.extract();
+                    PackageUpdateItem { name: name.to_owned(), new_version: Some(version.to_owned()), old_version: None}
+                })
+                .collect::<Vec<PackageUpdateItem>>();
+        
+                Ok(items)
+            }
+            _ => Ok(vec![])
+        }
     }
 }

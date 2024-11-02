@@ -70,11 +70,11 @@ fn perform_test() -> Result<()> {
 
     let updates = pkg_manager.check_update()?;
     if updates.is_empty() {
-        println!("No updates available.")
+        println!("No updates available.");
     } else {
         println!("Available updates:");
         for update in updates {
-            println!("{} ({}) -> ({})", update.name, update.old_version, update.new_version)
+            println!("{}", update);
         }
     }
 

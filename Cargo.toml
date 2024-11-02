@@ -9,3 +9,4 @@ toml = { version = "0.8.19" }
 serde = { version = "1.0.213", features = ["derive"] }
 quick-xml = "0.37.0"
 rpm = "0.15.1"
+regex = "1.11.1"
