@@ -67,7 +67,7 @@ impl<'de> Deserialize<'de> for PackageManagerType {
             "dnf" => Ok(PackageManagerType::Dnf),
             "apt" => Ok(PackageManagerType::Apt),
             "pacman" => Ok(PackageManagerType::Pacman),
-            _ => Err(Error::custom("invalid package manager"))
+            _ => Err(Error::custom("'package_manager' must be set to either \"zypper\", \"dnf\", \"apt\", or \"pacman\" in settings"))
         }
     }
 }

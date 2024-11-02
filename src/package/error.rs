@@ -96,7 +96,7 @@ impl std::fmt::Display for Error {
             Error::PackageNameDoesNotMatch(name, query) => write!(f, "package '{}' does not match the query '{}'", name, query),
             Error::RPMCommandError(error_string) => write!(f, "rpm command failed: {}", error_string),
             Error::InvalidRPMResponse => write!(f, "rpm query returned an unexpected response"),
-            Error::UnsupportedPackageManager => write!(f, "'package_manager' must be set to either \"zypper\", \"dnf\", \"apt\", or \"pacman\" in settings"),
+            Error::UnsupportedPackageManager => write!(f, "configured package manager is not supported"),
             Error::UnkownCachedPackagePath => write!(f, "'cached_package_path' must be provided in settings"),
             Error::DownloadError(error_string) => write!(f, "failed to download packages: {}", error_string),
             Error::UpdateError(error_string) => write!(f, "failed to run update: {}", error_string),
