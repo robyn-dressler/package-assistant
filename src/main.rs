@@ -45,22 +45,65 @@ impl std::fmt::Display for Error {
     }
 }
 
-fn handle_storage_result<T>(config_result: std::result::Result<T, storage::Error>) -> Result<Option<T>> {
-    let result = match config_result {
-        Err(storage::Error::FileAlreadyExists) => Ok(None),
-        Ok(value) => Ok(Some(value)),
-        Err(e) => Err(e)
-    };
-
-    Ok(result?)
+#[derive(Debug, Parser)]
+#[command(name = "package-assistant")]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
 }
 
-fn get_changelogs(query: Option<String>) -> Result<String> {
+#[derive(Debug, Subcommand)]
+enum Command {
+    #[command(about = "Initializes configuration and systemd services")]
+    Init {
+        #[arg(long = "config", short = 'c', help = "Copies the configuration from the provided file")]
+        config: Option<PathBuf>,
+    },
+    #[command(about = "Lists the changelogs for any cached packages")]
+    Changelog {
+        #[arg(long = "query", short = 'q', help = "Filters changelogs by package name")]
+        query: Option<String>,
+    },
+    #[command(about = "Verifies that package-assistant runs properly")]
+    Test
+}
+
+fn main() {
+    let args = Cli::parse();
+
+    let result = match args.command {
+        Command::Init { config: path_opt } => init(path_opt),
+        Command::Changelog { query } => changelog(query),
+        Command::Test => perform_test(),
+    };
+
+    match result {
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            std::process::exit(1);
+        },
+        _ => std::process::exit(0)
+    }
+}
+
+fn init(path_opt: Option<PathBuf>) -> Result<()> {
+    let output_path_opt = handle_storage_result(Config::init(path_opt))?;
+    handle_storage_result(Data::init(None))?;
+
+    if let Some(s) = output_path_opt.as_ref().and_then(|path| path.to_str()) {
+        println!("Wrote configuration to {}", s)
+    }
+
+    Ok(())
+}
+
+fn changelog(query: Option<String>) -> Result<()> {
     let config = Config::fetch()?;
     let pkg_manager = package::get_package_manager(&config.package)?;
     let ref changelog_query = ChangelogQuery { name: query };
-
-    Ok(pkg_manager.get_cached_changelogs(changelog_query)?)
+    let changelogs = pkg_manager.get_cached_changelogs(changelog_query)?;
+    println!("{}", changelogs);
+    Ok(())
 }
 
 fn perform_test() -> Result<()> {
@@ -84,53 +127,16 @@ fn perform_test() -> Result<()> {
 
     pkg_manager.do_update()?;
 
+    println!("Test succeeded!");
     Ok(())
 }
 
-#[derive(Debug, Parser)]
-#[command(name = "package-assistant")]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
+fn handle_storage_result<T>(config_result: std::result::Result<T, storage::Error>) -> Result<Option<T>> {
+    let result = match config_result {
+        Err(storage::Error::FileAlreadyExists) => Ok(None),
+        Ok(value) => Ok(Some(value)),
+        Err(e) => Err(e)
+    };
 
-#[derive(Debug, Subcommand)]
-enum Command {
-    Init {
-        #[arg(long = "config", short = 'c')]
-        config: Option<PathBuf>,
-    },
-    Changelog {
-        #[arg(long = "query", short = 'q')]
-        query: Option<String>,
-    },
-    Test
-}
-
-fn main() -> Result<()> {
-    let args = Cli::parse();
-
-    match args.command {
-        Command::Init { config: path_opt } => {
-            let path_opt = handle_storage_result(Config::init(path_opt))?;
-            handle_storage_result(Data::init(None))?;
-
-            if let Some(s) = path_opt.as_ref().and_then(|path| path.to_str()) {
-                println!("Wrote configuration to {}", s)
-            }
-        }
-        Command::Changelog { query } => {
-            let changelogs = get_changelogs(query)?;
-            println!("{}", changelogs);
-        },
-        Command::Test => {
-            let test_result = perform_test();
-            match test_result {
-                Ok(_) => println!("Test succeeded."),
-                Err(error) => eprintln!("Error: {}", error)
-            }
-        }
-    }
-
-    Ok(())
+    Ok(result?)
 }
