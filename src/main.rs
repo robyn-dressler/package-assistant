@@ -59,21 +59,36 @@ enum Command {
         #[arg(long = "config", short = 'c', help = "Copies the configuration from the provided file")]
         config: Option<PathBuf>,
     },
+    #[command(about = "Uses the system's package manager to check whether there are update available.")]
+    CheckUpdate {
+        #[arg(long = "download", short = 'd', help = "If there are pending updates, downloads and caches packages locally.")]
+        download: bool
+    },
+    #[command(about = "Uses the system's package manager to run an update.")]
+    Update {
+        #[arg(long = "gui", help = "Starts the update in a new GUI window.")]
+        gui: bool,
+        #[arg(long = "noconfirm", short = 'y', help = "Runs the update in a non-interactive mode, and attempts to solve conflicts automatically.")]
+        no_confirm: bool
+    },
     #[command(about = "Lists the changelogs for any cached packages")]
     Changelog {
         #[arg(long = "query", short = 'q', help = "Filters changelogs by package name")]
         query: Option<String>,
     },
+    #[cfg(debug_assertions)]
     #[command(about = "Verifies that package-assistant runs properly")]
     Test
 }
 
 fn main() {
     let args = Cli::parse();
-
     let result = match args.command {
         Command::Init { config: path_opt } => init(path_opt),
+        Command::CheckUpdate { download } => check_update(download),
+        Command::Update { gui, no_confirm } => update(gui, no_confirm),
         Command::Changelog { query } => changelog(query),
+        #[cfg(debug_assertions)]
         Command::Test => perform_test(),
     };
 
@@ -97,6 +112,38 @@ fn init(path_opt: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
+fn check_update(download: bool) -> Result<()> {
+    let config = Config::fetch()?;
+    let pkg_manager = package::get_package_manager(&config.package)?;
+    let updates = pkg_manager.check_update()?;
+
+    if updates.is_empty() {
+        println!("No updates available.");
+        return Ok(())
+    } else {
+        println!("Available updates:");
+        for update in updates {
+            println!("{}", update);
+        }
+    }
+
+    if download || config.service.download_in_background {
+        pkg_manager.download_update()?;
+        println!("Updates downloaded.");
+    }
+
+    Ok(())
+}
+
+fn update(gui: bool, no_confirm: bool) -> Result<()> {
+    let config = Config::fetch()?;
+    let pkg_manager = package::get_package_manager(&config.package)?;
+
+    pkg_manager.do_update(!no_confirm)?;
+
+    Ok(())
+}
+
 fn changelog(query: Option<String>) -> Result<()> {
     let config = Config::fetch()?;
     let pkg_manager = package::get_package_manager(&config.package)?;
@@ -106,6 +153,7 @@ fn changelog(query: Option<String>) -> Result<()> {
     Ok(())
 }
 
+#[cfg(debug_assertions)]
 fn perform_test() -> Result<()> {
     let config = Config::fetch()?;
     let pkg_manager = package::get_package_manager(&config.package)?;
@@ -125,7 +173,7 @@ fn perform_test() -> Result<()> {
     let changelogs = pkg_manager.get_cached_changelogs(changelog_query)?;
     println!("Changelog:\n{}", changelogs);
 
-    pkg_manager.do_update()?;
+    pkg_manager.do_update(false)?;
 
     println!("Test succeeded!");
     Ok(())

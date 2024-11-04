@@ -18,11 +18,29 @@ pub fn get_package_manager<'a>(config: &'a PackageConfig) -> Result<Box<dyn Pack
 
 pub fn run_shell_command<F>(command: &str, get_error: F) -> Result<()>
 where F: Fn(String) -> Error {
+    if command.is_empty() {
+        return Err(Error::EmptyCommand)
+    }
+
     let output = Command::new("sh")
         .args(["-c", command])
         .output()?;
 
     process_cmd_output(output, get_error)?;
+
+    Ok(())
+}
+
+pub fn run_interactive_shell_command(command: &str) -> Result<()> {
+    if command.is_empty() {
+        return Err(Error::EmptyCommand)
+    }
+
+    let mut child = Command::new("sh")
+        .args(["-c", command])
+        .spawn()?;
+
+    child.wait()?;
 
     Ok(())
 }

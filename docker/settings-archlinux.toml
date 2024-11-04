@@ -7,5 +7,6 @@ update_on_reboot = false
 [package]
 package_manager = "pacman"
 download_command = "pacman -Syuw --noconfirm"
-update_command = "pacman -Syu --noconfirm"
+update_command = "pacman -Syu"
+noconfirm_update_command = "pacman -Syu --noconfirm"
 cached_package_path = "/var/cache/pacman/pkg"

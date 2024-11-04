@@ -7,5 +7,6 @@ update_on_reboot = false
 [package]
 package_manager = "dnf"
 download_command = "dnf upgrade --downloadonly -y"
-update_command = "dnf upgrade -y"
+update_command = "dnf upgrade"
+noconfirm_update_command = "dnf upgrade -y"
 cached_package_path = "/var/cache/libdnf5"

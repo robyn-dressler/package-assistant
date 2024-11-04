@@ -35,6 +35,7 @@ pub struct PackageConfig {
     pub package_manager: Option<PackageManagerType>,
     pub download_command: String,
     pub update_command: String,
+    pub noconfirm_update_command: String,
     pub cached_package_path: Option<PathBuf>
 }
 
@@ -83,8 +84,9 @@ impl Default for Config {
             },
             package: PackageConfig {
                 package_manager: None,
-                download_command: String::from("pkcon update --only-download --background"),
-                update_command: String::from("pkcon update"),
+                download_command: String::from(""),
+                update_command: String::from(""),
+                noconfirm_update_command: String::from(""),
                 cached_package_path: None
             }
         }

@@ -111,8 +111,13 @@ pub trait PackageManager {
         utilities::run_shell_command(config.download_command.as_str(), |err| Error::DownloadError(err))
     }
 
-    fn do_update(&self) -> Result<()> {
+    fn do_update(&self, interactive: bool) -> Result<()> {
         let config = self.get_config();
-        utilities::run_shell_command(config.update_command.as_str(), |err| Error::UpdateError(err))
+
+        if interactive {
+            utilities::run_interactive_shell_command(config.update_command.as_str())
+        } else {
+            utilities::run_shell_command(config.noconfirm_update_command.as_str(), |err| Error::UpdateError(err))
+        }
     }
 }

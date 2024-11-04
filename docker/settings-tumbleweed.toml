@@ -7,5 +7,6 @@ update_on_reboot = false
 [package]
 package_manager = "zypper"
 download_command = "zypper dup -dy"
-update_command = "zypper dup -y"
+update_command = "zypper dup"
+noconfirm_update_command = "zypper dup -y"
 cached_package_path = "/var/cache/zypp/packages"
