@@ -3,7 +3,8 @@ use std::path::PathBuf;
 
 use super::toml::TomlStorage;
 
-const CONFIG_PATH: &str = "/etc";
+const CONFIG_HOME: &str = "XDG_CONFIG_HOME";
+const DEFAULT_CONFIG_PATH: &str = ".config";
 const CONFIG_FILE_NAME: &str = "settings.toml";
 
 #[derive(Deserialize, Serialize)]
@@ -14,7 +15,11 @@ pub struct Config {
 
 impl TomlStorage for Config {
     fn default_directory() -> &'static str {
-        CONFIG_PATH
+        DEFAULT_CONFIG_PATH
+    }
+
+    fn directory_env_var() -> &'static str {
+        CONFIG_HOME
     }
 
     fn file_name() -> &'static str {

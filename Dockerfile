@@ -1,16 +1,17 @@
-ARG BASE_IMAGE
+ARG DISTRO_NAME
 
 #Build application
 FROM rust:latest as builder
 WORKDIR /home/root/src
 COPY . .
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/src/package-assistant/target \
+RUN --mount=type=cache,target=/home/rust/.cargo/git \
+    --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,sharing=private,target=/usr/src/package-assistant/target \
     cargo build --release && \
     cp target/release/package-assistant ./package-assistant
 
 #Setup test environment
-FROM ${BASE_IMAGE}
+FROM ${DISTRO_NAME}-frozen
 WORKDIR /home/root
 
 COPY --from=builder /home/root/src/package-assistant /usr/local/bin/package-assistant

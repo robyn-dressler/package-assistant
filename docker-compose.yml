@@ -3,31 +3,27 @@ services:
     image: pkg-assistant-tumbleweed
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
       args:
-        BASE_IMAGE: opensuse/tumbleweed
         DISTRO_NAME: tumbleweed
   fedora:
     image: pkg-assistant-fedora
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
       args:
-        BASE_IMAGE: fedora
         DISTRO_NAME: fedora
   ubuntu:
     image: pkg-assistant-ubuntu
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
       args:
-        BASE_IMAGE: ubuntu
         DISTRO_NAME: ubuntu
   archlinux:
     image: pkg-assistant-archlinux
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
       args:
-        BASE_IMAGE: archlinux
         DISTRO_NAME: archlinux

@@ -6,6 +6,8 @@ use storage::{Config, Data, TomlStorage};
 
 mod package;
 mod storage;
+
+#[cfg(feature = "gui")]
 mod gui;
 
 type Result<T> = std::result::Result<T, Error>;
@@ -67,8 +69,6 @@ enum Command {
     },
     #[command(about = "Uses the system's package manager to run an update.")]
     Update {
-        #[arg(long = "gui", help = "Starts the update in a new GUI window.")]
-        gui: bool,
         #[arg(long = "noconfirm", short = 'y', help = "Runs the update in a non-interactive mode, and attempts to solve conflicts automatically.")]
         no_confirm: bool
     },
@@ -77,6 +77,7 @@ enum Command {
         #[arg(long = "query", short = 'q', help = "Filters changelogs by package name")]
         query: Option<String>,
     },
+    #[cfg(feature = "gui")]
     Gui,
     #[cfg(debug_assertions)]
     #[command(about = "Verifies that package-assistant runs properly")]
@@ -88,8 +89,9 @@ fn main() {
     let result = match args.command {
         Command::Init { config: path_opt } => init(path_opt),
         Command::CheckUpdate { download } => check_update(download),
-        Command::Update { gui, no_confirm } => update(gui, no_confirm),
+        Command::Update { no_confirm } => update(no_confirm),
         Command::Changelog { query } => changelog(query),
+        #[cfg(feature = "gui")]
         Command::Gui => gui(),
         #[cfg(debug_assertions)]
         Command::Test => perform_test(),
@@ -138,7 +140,7 @@ fn check_update(download: bool) -> Result<()> {
     Ok(())
 }
 
-fn update(gui: bool, no_confirm: bool) -> Result<()> {
+fn update(no_confirm: bool) -> Result<()> {
     let config = Config::fetch()?;
     let pkg_manager = package::get_package_manager(&config.package)?;
 
@@ -156,6 +158,7 @@ fn changelog(query: Option<String>) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "gui")]
 fn gui() -> Result<()> {
     gui::start_app();
     Ok(())
