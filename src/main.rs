@@ -6,6 +6,7 @@ use storage::{Config, Data, TomlStorage};
 
 mod package;
 mod storage;
+mod gui;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -76,6 +77,7 @@ enum Command {
         #[arg(long = "query", short = 'q', help = "Filters changelogs by package name")]
         query: Option<String>,
     },
+    Gui,
     #[cfg(debug_assertions)]
     #[command(about = "Verifies that package-assistant runs properly")]
     Test
@@ -88,6 +90,7 @@ fn main() {
         Command::CheckUpdate { download } => check_update(download),
         Command::Update { gui, no_confirm } => update(gui, no_confirm),
         Command::Changelog { query } => changelog(query),
+        Command::Gui => gui(),
         #[cfg(debug_assertions)]
         Command::Test => perform_test(),
     };
@@ -150,6 +153,11 @@ fn changelog(query: Option<String>) -> Result<()> {
     let ref changelog_query = ChangelogQuery { name: query };
     let changelogs = pkg_manager.get_cached_changelogs(changelog_query)?;
     println!("{}", changelogs);
+    Ok(())
+}
+
+fn gui() -> Result<()> {
+    gui::start_app();
     Ok(())
 }
 

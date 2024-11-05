@@ -16,14 +16,15 @@ pub fn get_package_manager<'a>(config: &'a PackageConfig) -> Result<Box<dyn Pack
     }
 }
 
-pub fn run_shell_command<F>(command: &str, get_error: F) -> Result<()>
+pub fn run_shell_command<F>(command: &str, elevate_priveleges: bool, get_error: F) -> Result<()>
 where F: Fn(String) -> Error {
     if command.is_empty() {
         return Err(Error::EmptyCommand)
     }
 
+    let modified_command = if elevate_priveleges { String::from("pkexec ") + command } else { String::from(command) };
     let output = Command::new("sh")
-        .args(["-c", command])
+        .args(["-c", modified_command.as_str()])
         .output()?;
 
     process_cmd_output(output, get_error)?;
@@ -31,13 +32,14 @@ where F: Fn(String) -> Error {
     Ok(())
 }
 
-pub fn run_interactive_shell_command(command: &str) -> Result<()> {
+pub fn run_interactive_shell_command(command: &str, elevate_priveleges: bool) -> Result<()> {
     if command.is_empty() {
         return Err(Error::EmptyCommand)
     }
 
+    let modified_command = if elevate_priveleges { String::from("pkexec ") + command } else { String::from(command) };
     let mut child = Command::new("sh")
-        .args(["-c", command])
+        .args(["-c", modified_command.as_str()])
         .spawn()?;
 
     child.wait()?;

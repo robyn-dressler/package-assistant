@@ -108,16 +108,15 @@ pub trait PackageManager {
 
     fn download_update(&self) -> Result<()> {
         let config = self.get_config();
-        utilities::run_shell_command(config.download_command.as_str(), |err| Error::DownloadError(err))
+        utilities::run_shell_command(config.download_command.as_str(), true, |err| Error::DownloadError(err))
     }
 
     fn do_update(&self, interactive: bool) -> Result<()> {
         let config = self.get_config();
-
         if interactive {
-            utilities::run_interactive_shell_command(config.update_command.as_str())
+            utilities::run_interactive_shell_command(config.update_command.as_str(), true)
         } else {
-            utilities::run_shell_command(config.noconfirm_update_command.as_str(), |err| Error::UpdateError(err))
+            utilities::run_shell_command(config.noconfirm_update_command.as_str(), true,  |err| Error::UpdateError(err))
         }
     }
 }
