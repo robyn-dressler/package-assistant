@@ -1,3 +1,4 @@
 target/
 .gitignore
 docker-compose.yml
+Dockerfile
