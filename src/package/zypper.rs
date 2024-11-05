@@ -28,7 +28,7 @@ impl<'a> PackageManager for ZypperManager<'a> {
         let output = Command::new("zypper")
             .args(["--xmlout", "lu"])
             .output()?;
-        let stdout = utilities::process_cmd_output(output, |err| Error::ZypperError(err))?;
+        let stdout = utilities::process_cmd_output(output, Some(|err| Error::ZypperError(err)))?;
         let mut reader = Reader::from_str(stdout.as_str());
         let mut items = Vec::new();
 

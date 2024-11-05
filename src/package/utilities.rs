@@ -16,13 +16,13 @@ pub fn get_package_manager<'a>(config: &'a PackageConfig) -> Result<Box<dyn Pack
     }
 }
 
-pub fn run_shell_command<F>(command: &str, elevate_priveleges: bool, get_error: F) -> Result<()>
+pub fn run_shell_command<F>(command: &str, elevate_privileges: bool, get_error: Option<F>) -> Result<()>
 where F: Fn(String) -> Error {
     if command.is_empty() {
         return Err(Error::EmptyCommand)
     }
 
-    let modified_command = if elevate_priveleges { String::from("pkexec ") + command } else { String::from(command) };
+    let modified_command = if elevate_privileges { String::from("pkexec ") + command } else { String::from(command) };
     let output = Command::new("sh")
         .args(["-c", modified_command.as_str()])
         .output()?;
@@ -32,12 +32,12 @@ where F: Fn(String) -> Error {
     Ok(())
 }
 
-pub fn run_interactive_shell_command(command: &str, elevate_priveleges: bool) -> Result<()> {
+pub fn run_interactive_shell_command(command: &str, elevate_privileges: bool) -> Result<()> {
     if command.is_empty() {
         return Err(Error::EmptyCommand)
     }
 
-    let modified_command = if elevate_priveleges { String::from("pkexec ") + command } else { String::from(command) };
+    let modified_command = if elevate_privileges { String::from("pkexec ") + command } else { String::from(command) };
     let mut child = Command::new("sh")
         .args(["-c", modified_command.as_str()])
         .spawn()?;
@@ -47,11 +47,11 @@ pub fn run_interactive_shell_command(command: &str, elevate_priveleges: bool) ->
     Ok(())
 }
 
-pub fn process_cmd_output<F>(output: Output, get_error: F) -> Result<String>
+pub fn process_cmd_output<F>(output: Output, get_error: Option<F>) -> Result<String>
 where F: Fn(String) -> Error {
-    if !output.status.success() {
+    if !output.status.success() && get_error.is_some() {
         let stderr = String::from_utf8(output.stderr)?;
-        return Err(get_error(stderr))
+        return Err(get_error.unwrap()(stderr))
     } else {
         let stdout = String::from_utf8(output.stdout)?;
         Ok(stdout)
@@ -89,7 +89,7 @@ pub fn get_installed_pkg_timestamp(name: &str) -> Result<u64> {
         .args(["-q", name, "--qf", "%{CHANGELOGTIME}"])
         .output()?;
 
-    let stdout = process_cmd_output(output, |err| Error::RPMCommandError(err))?;
+    let stdout = process_cmd_output(output, Some(|err| Error::RPMCommandError(err)))?;
     if let Some(first_line) = stdout.lines().next() {
         Ok(first_line.parse::<u64>()?)
     } else {

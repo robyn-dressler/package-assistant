@@ -133,7 +133,7 @@ fn check_update(download: bool) -> Result<()> {
     }
 
     if download || config.service.download_in_background {
-        pkg_manager.download_update()?;
+        pkg_manager.download_update(true)?;
         println!("Updates downloaded.");
     }
 
@@ -144,7 +144,7 @@ fn update(no_confirm: bool) -> Result<()> {
     let config = Config::fetch()?;
     let pkg_manager = package::get_package_manager(&config.package)?;
 
-    pkg_manager.do_update(!no_confirm)?;
+    pkg_manager.do_update(!no_confirm, true)?;
 
     Ok(())
 }
@@ -180,11 +180,11 @@ fn perform_test() -> Result<()> {
         }
     }
 
-    pkg_manager.download_update()?;
+    pkg_manager.download_update(false)?;
     let changelogs = pkg_manager.get_cached_changelogs(changelog_query)?;
     println!("Changelog:\n{}", changelogs);
 
-    pkg_manager.do_update(false)?;
+    pkg_manager.do_update(false, false)?;
 
     println!("Test succeeded!");
     Ok(())

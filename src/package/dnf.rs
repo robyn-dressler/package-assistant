@@ -25,21 +25,15 @@ impl<'a> PackageManager for DnfManger<'a> {
         let output = Command::new("dnf")
             .arg("check-update")
             .output()?;
-        let cmd_result = utilities::process_cmd_output(output, |err| Error::DnfError(err));
+        let cmd_result = utilities::process_cmd_output::<fn(String) -> Error>(output, None)?;
 
-        match cmd_result {
-            Ok(stdout) => {
-                let regex = Regex::new(r"(?gm)^(\S+)\s+(\S+)\s+updates$")?;
-        
-                let items = regex.captures_iter(&stdout).map(|c| {
-                    let (_, [name, version]) = c.extract();
-                    PackageUpdateItem { name: name.to_owned(), new_version: Some(version.to_owned()), old_version: None}
-                })
-                .collect::<Vec<PackageUpdateItem>>();
-        
-                Ok(items)
-            }
-            _ => Ok(vec![])
-        }
+        let regex = Regex::new(r"(?m)^(\S+)\s+(\S+)\s+updates$")?;
+        let items = regex.captures_iter(&cmd_result).map(|c| {
+            let (_, [name, version]) = c.extract();
+            PackageUpdateItem { name: name.to_owned(), new_version: Some(version.to_owned()), old_version: None}
+        })
+        .collect::<Vec<PackageUpdateItem>>();
+
+        Ok(items)
     }
 }

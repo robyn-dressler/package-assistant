@@ -6,7 +6,6 @@ services:
       dockerfile: Dockerfile
       args:
         DISTRO_NAME: tumbleweed
-        INSTALL_DEPS: zypper in -y pkexec
   fedora:
     image: pkg-assistant-fedora
     build:
@@ -14,7 +13,6 @@ services:
       dockerfile: Dockerfile
       args:
         DISTRO_NAME: fedora
-        INSTALL_DEPS: dnf install -y pkexec
   ubuntu:
     image: pkg-assistant-ubuntu
     build:
@@ -23,7 +21,6 @@ services:
       args:
         DISTRO_NAME: ubuntu
         REFRESH_REPO: apt-get update
-        INSTALL_DEPS: apt-get install -y pkexec
   archlinux:
     image: pkg-assistant-archlinux
     build:
@@ -31,4 +28,3 @@ services:
       dockerfile: Dockerfile
       args:
         DISTRO_NAME: archlinux
-        INSTALL_DEPS: pacman -Sy --noconfirm polkit

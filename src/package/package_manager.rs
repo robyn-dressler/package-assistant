@@ -25,15 +25,11 @@ impl std::fmt::Display for PackageUpdateItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)?;
 
-        if let Some(ref new_version) = self.new_version {
-            write!(f, " ({})", new_version)?;
-
-            if let Some(ref old_version) = self.old_version {
-                write!(f, " -> ({})", old_version)?;
-            }
+        match (&self.new_version, &self.old_version) {
+            (Some(new_version), Some(old_version)) => write!(f, " ({old_version}) -> ({new_version})"),
+            (Some(new_version), None) => write!(f, " ({new_version})"),
+            _ => Ok(())
         }
-
-        Ok(())
     }
 }
 
@@ -106,17 +102,19 @@ pub trait PackageManager {
 
     fn check_update(&self) -> Result<Vec<PackageUpdateItem>>;
 
-    fn download_update(&self) -> Result<()> {
+    fn download_update(&self, elevate_privileges: bool) -> Result<()> {
         let config = self.get_config();
-        utilities::run_shell_command(config.download_command.as_str(), true, |err| Error::DownloadError(err))
+        utilities::run_shell_command(config.download_command.as_str(), elevate_privileges, 
+            Some(|err| Error::DownloadError(err)))
     }
 
-    fn do_update(&self, interactive: bool) -> Result<()> {
+    fn do_update(&self, interactive: bool, elevate_privileges: bool) -> Result<()> {
         let config = self.get_config();
         if interactive {
-            utilities::run_interactive_shell_command(config.update_command.as_str(), true)
+            utilities::run_interactive_shell_command(config.update_command.as_str(), elevate_privileges)
         } else {
-            utilities::run_shell_command(config.noconfirm_update_command.as_str(), true,  |err| Error::UpdateError(err))
+            utilities::run_shell_command(config.noconfirm_update_command.as_str(), elevate_privileges,
+                Some(|err| Error::UpdateError(err)))
         }
     }
 }
